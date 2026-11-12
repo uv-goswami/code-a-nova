@@ -1,0 +1,600 @@
+# =============================================================================
+# Code-a-Nova Hackathon Registration API - OpenAPI 3.0 contract
+# SINGLE SOURCE OF TRUTH (see docs/adr/0003): this file drives
+#   1. request validation (express-openapi-validator)
+#   2. Swagger UI at /api/docs and raw JSON at /api/openapi.json
+#   3. dropdown enums used by Mongoose models and GET /api/meta/options
+# Edit the enums below to change colleges / courses / branches / tracks.
+# =============================================================================
+openapi: 3.0.3
+info:
+  title: Code-a-Nova Hackathon Registration API
+  version: 1.0.0
+  description: |
+    REST API for the Code-a-Nova Hackathon Registration Portal.
+
+    **Auth:** after login, send `Authorization: Bearer <JWT>` on protected routes.
+
+    **Envelope:** every response is `{ "success": true, "data": ... }` or
+    `{ "success": false, "error": { "code", "message", "details?" } }`.
+servers:
+  - url: /api
+    description: Same-origin API base path
+tags:
+  - name: System
+  - name: Auth
+  - name: User
+  - name: Hackathon
+  - name: Contact
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      operationId: healthCheck
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string, example: ok }
+                      uptime: { type: number, example: 12.3 }
+
+  /meta/options:
+    get:
+      tags: [System]
+      operationId: getFormOptions
+      summary: Dropdown values for the registration form
+      description: Lets the frontend render selects without hard-coding lists.
+      responses:
+        '200':
+          description: Allowed values per dropdown
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    required: [colleges, courses, branches, yearsOfStudy, domains, teamSize]
+                    properties:
+                      colleges: { type: array, items: { type: string } }
+                      courses: { type: array, items: { type: string } }
+                      branches: { type: array, items: { type: string } }
+                      yearsOfStudy: { type: array, items: { type: string } }
+                      domains: { type: array, items: { type: string } }
+                      teamSize: { type: object, properties: { min: { type: integer }, max: { type: integer } } }
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      operationId: signup
+      summary: Create an unverified account and email a 6-digit OTP
+      description: |
+        If the email exists but is **unverified**, the name/password are
+        overwritten and a fresh OTP is sent (lets users recover from a lost OTP).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+      responses:
+        '201':
+          description: Account created, OTP emailed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      email: { type: string, format: email }
+                      message: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/EmailFailure' }
+
+  /auth/verify-otp:
+    post:
+      tags: [Auth]
+      operationId: verifyOtp
+      summary: Verify the OTP and activate the account
+      description: OTP expires after 10 minutes, is single-use, and locks after 5 wrong attempts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyOtpRequest' }
+      responses:
+        '200':
+          description: Account verified
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/resend-otp:
+    post:
+      tags: [Auth]
+      operationId: resendOtp
+      summary: Issue and email a new OTP (invalidates the previous one)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResendOtpRequest' }
+      responses:
+        '200':
+          description: OTP re-sent (response is identical whether or not the email exists)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/EmailFailure' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Authenticate and receive a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+                      user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /user/me:
+    get:
+      tags: [User]
+      operationId: getMyProfile
+      summary: Profile of the logged-in user
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /user/update:
+    put:
+      tags: [User]
+      operationId: updateMyProfile
+      summary: Update profile details (currently only fullName)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /hackathon/register:
+    post:
+      tags: [Hackathon]
+      operationId: registerForHackathon
+      summary: Submit the hackathon registration (one per user)
+      description: Saves the entry and emails a confirmation. A mail failure does not roll back the entry; see `emailSent`.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegistrationRequest' }
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      registration: { $ref: '#/components/schemas/Registration' }
+                      emailSent: { type: boolean }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /hackathon/my-entry:
+    get:
+      tags: [Hackathon]
+      operationId: getMyEntry
+      summary: The logged-in user's registration
+      description: Returns 404 `REGISTRATION_NOT_FOUND` when the user has not registered (dashboard shows the Register Now CTA).
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Registration
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      registration: { $ref: '#/components/schemas/Registration' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /hackathon/{id}:
+    delete:
+      tags: [Hackathon]
+      operationId: deleteRegistration
+      summary: Delete a registration (owner or admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /contact:
+    post:
+      tags: [Contact]
+      operationId: submitContactForm
+      summary: Send a message to the Code-a-Nova team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactRequest' }
+      responses:
+        '201':
+          description: Message received
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      contactEmail: { type: string, format: email }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ---------- Dropdown enums (consumed by models + /meta/options) ----------
+    College:
+      type: string
+      enum:
+        - Indira Gandhi Delhi Technical University for Women
+        - Delhi Technological University
+        - Netaji Subhas University of Technology
+        - Guru Gobind Singh Indraprastha University
+        - Maharaja Agrasen Institute of Technology
+        - Bharati Vidyapeeth College of Engineering
+        - Maharaja Surajmal Institute of Technology
+        - Jamia Millia Islamia
+        - Amity University Noida
+        - Galgotias University
+        - Other
+    Course:
+      type: string
+      enum: [B.Tech, M.Tech, BCA, MCA, BSc, MSc, BBA, MBA, Other]
+    Branch:
+      type: string
+      enum: [CSE, IT, ECE, EEE, ME, CE, AI/ML, Data Science, Other]
+    YearOfStudy:
+      type: string
+      enum: [1st Year, 2nd Year, 3rd Year, 4th Year]
+    Domain:
+      type: string
+      enum: [AI/ML, Web Dev, IoT, Cyber Security, Blockchain, Mobile Apps, Cloud/DevOps, Other]
+
+    # ---------- Reusable field types ----------
+    PersonName:
+      type: string
+      minLength: 3
+      maxLength: 60
+      pattern: '^(?=.*[A-Za-z])[A-Za-z ]+$'
+      description: Letters and spaces only, min 3 chars
+      example: Aanya Sharma
+    Email:
+      type: string
+      format: email
+      maxLength: 254
+      example: aanya@example.com
+    Password:
+      type: string
+      minLength: 8
+      maxLength: 72
+      pattern: '^(?=.*[A-Za-z])(?=.*\d).+$'
+      description: 8-72 chars (bcrypt limit), at least one letter and one digit
+    Otp:
+      type: string
+      pattern: '^\d{6}$'
+      example: '482913'
+    Url:
+      type: string
+      format: uri
+      maxLength: 500
+      pattern: '^https?://'
+
+    # ---------- Requests ----------
+    SignupRequest:
+      type: object
+      additionalProperties: false
+      required: [fullName, email, password, confirmPassword]
+      properties:
+        fullName: { $ref: '#/components/schemas/PersonName' }
+        email: { $ref: '#/components/schemas/Email' }
+        password: { $ref: '#/components/schemas/Password' }
+        confirmPassword: { type: string, description: Must equal password }
+    VerifyOtpRequest:
+      type: object
+      additionalProperties: false
+      required: [email, otp]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+        otp: { $ref: '#/components/schemas/Otp' }
+    ResendOtpRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+        password: { type: string, minLength: 1, maxLength: 72 }
+    UpdateProfileRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        fullName: { $ref: '#/components/schemas/PersonName' }
+    TeamMember:
+      type: object
+      additionalProperties: false
+      required: [name, email]
+      properties:
+        name: { $ref: '#/components/schemas/PersonName' }
+        email: { $ref: '#/components/schemas/Email' }
+    RegistrationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - fullName
+        - email
+        - mobile
+        - college
+        - course
+        - branch
+        - yearOfStudy
+        - domain
+        - projectName
+        - pptLink
+        - prototypeLink
+        - teamSize
+      properties:
+        fullName: { $ref: '#/components/schemas/PersonName' }
+        email:
+          allOf: [{ $ref: '#/components/schemas/Email' }]
+          description: Must match the logged-in account email (pre-filled by the UI)
+        mobile:
+          type: string
+          pattern: '^[6-9]\d{9}$'
+          description: 10-digit Indian mobile number
+          example: '9876543210'
+        college: { $ref: '#/components/schemas/College' }
+        course: { $ref: '#/components/schemas/Course' }
+        branch: { $ref: '#/components/schemas/Branch' }
+        yearOfStudy: { $ref: '#/components/schemas/YearOfStudy' }
+        domain: { $ref: '#/components/schemas/Domain' }
+        projectName: { type: string, minLength: 5, maxLength: 100 }
+        pptLink:
+          allOf: [{ $ref: '#/components/schemas/Url' }]
+          description: Google Drive / OneDrive shareable link (host allow-list enforced)
+        prototypeLink:
+          allOf: [{ $ref: '#/components/schemas/Url' }]
+          description: GitHub / Figma / live demo link
+        demoVideoLink:
+          allOf: [{ $ref: '#/components/schemas/Url' }]
+          description: Optional. YouTube / Drive link (host allow-list enforced)
+        teamSize:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Total team size INCLUDING the registrant (see ADR-0006)
+        teamMembers:
+          type: array
+          maxItems: 4
+          description: The other members; length must equal teamSize - 1
+          items: { $ref: '#/components/schemas/TeamMember' }
+    ContactRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, message]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 60 }
+        email: { $ref: '#/components/schemas/Email' }
+        message: { type: string, minLength: 10, maxLength: 2000 }
+
+    # ---------- Responses payloads ----------
+    User:
+      type: object
+      required: [id, fullName, email, role, isVerified, createdAt]
+      properties:
+        id: { type: string, example: 665f1c2e8b3a4c0012a4d111 }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [participant, admin] }
+        isVerified: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    Registration:
+      type: object
+      required: [id, user, fullName, email, mobile, college, course, branch, yearOfStudy, domain, projectName, pptLink, prototypeLink, demoVideoLink, teamSize, teamMembers, createdAt]
+      properties:
+        id: { type: string }
+        user: { type: string }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        mobile: { type: string }
+        college: { $ref: '#/components/schemas/College' }
+        course: { $ref: '#/components/schemas/Course' }
+        branch: { $ref: '#/components/schemas/Branch' }
+        yearOfStudy: { $ref: '#/components/schemas/YearOfStudy' }
+        domain: { $ref: '#/components/schemas/Domain' }
+        projectName: { type: string }
+        pptLink: { type: string }
+        prototypeLink: { type: string }
+        demoVideoLink: { type: string, nullable: true }
+        teamSize: { type: integer }
+        teamMembers: { type: array, items: { $ref: '#/components/schemas/TeamMember' } }
+        createdAt: { type: string, format: date-time }
+    MessageResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            message: { type: string }
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+
+  responses:
+    ValidationError:
+      description: Invalid input (`VALIDATION_ERROR`, `PASSWORD_MISMATCH`, `INVALID_OTP`, `OTP_EXPIRED`, ...)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Missing/invalid/expired token or bad credentials
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Authenticated but not allowed (`EMAIL_NOT_VERIFIED`, `FORBIDDEN`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Duplicate resource (`EMAIL_ALREADY_REGISTERED`, `ALREADY_REGISTERED`, `ALREADY_VERIFIED`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    TooManyRequests:
+      description: Rate limit, OTP cooldown or OTP attempt lock
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    EmailFailure:
+      description: Email provider failed (`EMAIL_SEND_FAILED`); retry via resend-otp
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
