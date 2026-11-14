@@ -6,7 +6,7 @@ A full-stack registration portal for the Code-a-Nova Hackathon. Students can cre
 |  |  |
 | --- | --- |
 | **Live app** | https://code-a-nova-web.onrender.com/ |
-| **API documentation** | https://code-a-nova-web.onrender.com/api/docs |
+| **API documentation** | https://code-a-nova-bt2c.onrender.com/api/docs |
 
 ## Features
 
