@@ -1,119 +1,270 @@
+
 # Code-a-Nova Hackathon Registration Portal
 
-A full-stack web app where students sign up, verify their email with a one-time code, log in, and register their project and team for the Code-a-Nova Hackathon. Built with the MERN stack, written in TypeScript end to end, and deployed on Render.
+A full-stack registration portal for the Code-a-Nova Hackathon. Students can create an account, verify their email, log in, and submit their project and team details. The application is built with the MERN stack using TypeScript across the frontend and backend, and is deployed on Render.
 
-| | |
-|---|---|
-| **Live app** | `<paste the Render web URL after deploying>` |
-| **API docs (Swagger)** | `<paste the Render API URL>/api/docs` |
-| **Demo video** | `<paste link>` |
+|  |  |
+| --- | --- |
+| **Live app** | Live link |
+| **API documentation** | Swagger UI |
+| **Demo video** | Watch demo |
 
-> Heads up: the API runs on Render's free plan, so the first request after a quiet period can take up to a minute while it wakes up.
+## Features
 
-## What it does
+1. **Account creation:** Students can sign up using their name, email and password. A six-digit verification code is sent to their email.
+2. **Email verification:** The code expires after 10 minutes and can only be used once. The verification screen supports typing, pasting and autofill. After five incorrect attempts, a new code is required.
+3. **Login:** Verified users can log in and access their dashboard.
+4. **Dashboard:** Users can view and update their profile, check their registration details, and withdraw their registration.
+5. **Hackathon registration:** Students can submit their college, course, branch, track, project name, PPT, prototype and demo links, along with their team details. The number of member fields changes based on the selected team size.
+6. **Confirmation email:** After registration, an email containing the event and team details is sent to the user.
 
-1. **Sign up** with name, email and password. The server emails a 6-digit code (valid for 10 minutes, usable once).
-2. **Verify** the code on a six-box input that supports typing, pasting and autofill. A wrong code is counted; after 5 misses you must request a new one.
-3. **Log in.** A JWT is issued and the private pages unlock.
-4. **Dashboard** shows your profile and your registration. If you have not registered yet, there is a clear **Register Now** button.
-5. **Register** your project: college, course, branch, track, project name, PPT, prototype and demo links, and your team. Pick a team size and the form shows the right number of member boxes.
-6. **Confirmation email** goes out with your event and team details. Withdraw the registration or edit your name any time from the dashboard.
-
-There is also a landing page (hero, highlights, timeline, prizes), About, Contact, a responsive navbar with a mobile menu, and a footer.
+The portal also includes a home page with event highlights, timeline and prizes, along with About and Contact pages. The navigation menu works on both desktop and mobile screens.
 
 ## Screenshots
 
-| | |
+| Home | Sign up |
 |---|---|
 | ![Home](docs/screenshots/01-home.png) | ![Sign up](docs/screenshots/02-signup.png) |
-| ![OTP verification](docs/screenshots/03-otp-verification.png) | ![Dashboard before registering](docs/screenshots/04-dashboard-not-registered.png) |
+
+| OTP verification | Dashboard (not registered) |
+|---|---|
+| ![OTP verification](docs/screenshots/03-otp-verification.png) | ![Dashboard](docs/screenshots/04-dashboard-not-registered.png) |
+
+| Registration form | Registration success |
+|---|---|
 | ![Registration form](docs/screenshots/05-registration-form.png) | ![Registration success](docs/screenshots/06-registration-success.png) |
-| ![Dashboard after registering](docs/screenshots/07-dashboard-registered.png) | ![Mobile menu](docs/screenshots/08-mobile-menu.png) |
 
-## Tech stack, and why
+| Registered dashboard | Mobile menu |
+|---|---|
+| ![Registered dashboard](docs/screenshots/07-dashboard-registered.png) | ![Mobile menu](docs/screenshots/08-mobile-menu.png) |
 
-| Layer | Choice | Why |
-|---|---|---|
-| Frontend | React 19, Vite, TypeScript, React Router | Fast dev loop, typed API calls |
-| Styling | Tailwind CSS v4, hand-built components | Full control over a flat, clean look (no gradients) |
-| Forms | react-hook-form + Zod | Instant feedback; server errors land under the right field |
-| Backend | Node.js, Express, TypeScript | Required by the brief; small and easy to read |
-| Database | MongoDB Atlas + Mongoose | Required by the brief (see "Decisions we would revisit") |
-| Auth | JWT + bcrypt | Required by the brief |
-| Email | Nodemailer over SMTP | Required by the brief |
-| API contract | OpenAPI 3 (served as Swagger UI) | One file drives validation, docs and types |
-| Tests | Jest + Supertest (API), Vitest + Testing Library (UI) | Fast, no real email or real database needed |
-| Hosting | Render (Node web service + static site), no Docker | As requested |
+## Tech Stack
 
-## How it is put together
+| Layer | Technology | Purpose |
+| --- | --- | --- |
+| Frontend | React 19, Vite, TypeScript, React Router | Building the web application and handling navigation |
+| Styling | Tailwind CSS v4 | Styling and responsive layouts |
+| Forms | React Hook Form, Zod | Form handling and validation |
+| Backend | Node.js, Express, TypeScript | API and application logic |
+| Database | MongoDB Atlas, Mongoose | Storing user, registration and contact data |
+| Authentication | JWT, bcrypt | User authentication and password hashing |
+| Email | Nodemailer, SMTP | OTP verification and registration emails |
+| API documentation | OpenAPI 3, Swagger UI | API specification and request validation |
+| Backend testing | Jest, Supertest | API and service tests |
+| Frontend testing | Vitest, Testing Library | Component and form tests |
+| Hosting | Render | Hosting the API and frontend |
 
-```
-/server   Express API: routes -> controllers -> services -> models
-/client   React app: pages, small UI kit, typed API layer
-/docs     Architecture Decision Records, API and database schema, screenshots
-render.yaml   Render Blueprint (API + static site)
-```
+## Implementation Details
 
-A few things we cared about in this codebase:
+### API and validation
 
-- **One source of truth for the API.** `server/openapi/openapi.yaml` validates every request at runtime, powers Swagger UI, supplies the dropdown lists, and generates the TypeScript types used by both server and client. Zod only covers what OpenAPI cannot: environment variables, cross-field rules (password match, team member count) and the JWT payload.
-- **Security basics done properly.** bcrypt (cost 12), OTPs stored as an HMAC hash with expiry, single use, attempt limit and resend cooldown, constant-time comparisons, login that does not reveal whether an email exists, rate limiting, Helmet, a CORS allow-list, `Cache-Control: no-store` on API responses, HTML-escaped email templates, and no secrets in the repo.
-- **Failure-friendly UX.** If the OTP email cannot be sent, the user is still taken to the verification page with a Resend option. A failed confirmation email never undoes a saved registration.
-- **Decisions are written down.** 18 short ADRs in `docs/adr/` explain what was chosen, what was rejected and why.
-- **Accessible and responsive.** Labelled inputs with error messages, visible focus, skip link, semantic headings, no horizontal scroll at 390 px wide.
+The API specification is maintained in `server/openapi/openapi.yaml`. It is used for request validation, Swagger documentation and generating TypeScript types for both the frontend and backend.
 
-## Decisions we would revisit
+Zod handles validation that is not covered by the OpenAPI specification, including environment variables, password confirmation, team member counts and JWT payloads.
 
-This is the honest part. Some choices were made because the brief asked for them, not because they are what we would pick on our own.
+### Authentication and security
 
-- **MongoDB was required, but we would have chosen PostgreSQL.** The data is relational: one user has at most one registration, a registration has team members, and organisers will want to filter, count and export. PostgreSQL gives real foreign keys, `CHECK` constraints (team size 1 to 5), transactions and easy reporting with SQL. Here MongoDB works fine, and we compensated with unique indexes, schema validation in Mongoose and a documented schema, but we would reach for Postgres (with Prisma or Drizzle) first. Because the services talk to the database through small models, moving over would mostly touch `server/src/models` and the services, not the API or the UI.
-- **JWT in `localStorage`.** The brief allows it, and with the site and API on different domains it is the simplest approach. An httpOnly cookie on a shared domain, with refresh tokens, is safer against XSS and is what we would ship for real users. Logout today only deletes the token; there is no server-side revocation.
-- **OTP stored on the user record.** Simple and correct for this size. At scale we would use a TTL collection or Redis, and clean up accounts that never verify.
-- **Gmail locally, Brevo in production.** Render's free plan blocks outbound SMTP on ports 25, 465 and 587, so Gmail cannot work there. Production uses Brevo's relay on port 2525 (still Nodemailer). A paid Render instance would let Gmail work unchanged.
-- **Hand-built UI instead of Material UI.** The brief allowed either. We wanted a specific flat look and full control, at the cost of writing a few components myself.
-- **Team size means "including you".** The brief was ambiguous ("size 1 is solo" and "size 3 shows 3 boxes" cannot both hold). We chose size = total people, so size 3 shows 2 member boxes. It is a one-line change if the organisers want the other reading (see ADR-0006).
+- Passwords are hashed using bcrypt with a cost factor of 12.
+- OTPs are stored as HMAC hashes rather than plain text.
+- Verification codes expire after 10 minutes and can only be used once.
+- OTP attempts and resend requests are limited.
+- Constant-time comparisons are used when checking OTP hashes.
+- Login responses do not reveal whether an email address is registered.
+- Rate limiting, Helmet and a CORS allow-list are configured.
+- API responses use `Cache-Control: no-store`.
+- Email templates escape user-provided HTML content.
+- Environment secrets are kept out of the repository.
 
-## Run it locally
+### Error handling
 
-You need Node 20 or newer, a free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster, and either a Gmail App Password or a Brevo account for email. `instructions.md` has the click-by-click setup for each.
+Email delivery failures are handled separately from the main registration flow. If an OTP email cannot be sent, users can still reach the verification screen and request another code.
+
+Similarly, a failed confirmation email does not undo a registration that has already been saved.
+
+### Architecture decisions
+
+The `docs/adr/` directory contains 18 Architecture Decision Records covering the main technical choices, including authentication, database design, API structure, validation, testing and deployment.
+
+### Responsive design
+
+The interface includes labelled form fields, validation messages, visible focus states, semantic headings and a skip link. The layouts have also been checked on mobile screens, including a width of 390px.
+
+## Technical Decisions and Trade-offs
+
+Some implementation choices were made to meet the project requirements. There are a few things I would approach differently in a production application.
+
+### MongoDB instead of PostgreSQL
+
+MongoDB was required for this project. However, PostgreSQL would be a reasonable choice for this type of application.
+
+The data has clear relationships: a user can have one registration, and each registration contains team members. PostgreSQL would provide foreign keys, transactions, database constraints and straightforward reporting.
+
+MongoDB works for the current requirements, with unique indexes and Mongoose validation handling data consistency. The database operations are kept within the models and services, so changing databases later would not require rewriting the API or frontend.
+
+### JWT stored in localStorage
+
+The current implementation stores the JWT in `localStorage`. This keeps authentication straightforward when the frontend and API are hosted on separate domains.
+
+For a production application, I would prefer secure, HTTP-only cookies with refresh-token handling. The current logout implementation removes the token from the browser but does not revoke it on the server.
+
+### OTP storage
+
+OTP information is stored directly on the user record. This is sufficient for the current application.
+
+For a larger system, Redis or a separate collection with TTL-based cleanup would make more sense. Unverified accounts would also need a cleanup process.
+
+### Email configuration
+
+Nodemailer handles email delivery through SMTP.
+
+Local development can use Gmail with an App Password. Production uses Brevo's SMTP relay on port 2525 because Render's free plan restricts outbound SMTP on ports 25, 465 and 587.
+
+### UI components
+
+The interface uses custom React components styled with Tailwind CSS rather than a component library. This made it easier to maintain the intended flat design, although it meant implementing common components manually.
+
+### Team size
+
+Team size includes the person submitting the registration. For example, selecting a team size of three displays two additional member fields.
+
+This interpretation is documented in ADR-0006 and can be changed if the event requirements differ.
+
+## Running Locally
+
+### Requirements
+
+- Node.js 20 or newer
+- MongoDB Atlas account and cluster
+- Gmail App Password or Brevo account for email delivery
+
+### 1\. Start the backend
+
+bash
 
 ```bash
-# API (http://localhost:5000, Swagger at /api/docs)
 cd server
-cp .env.example .env        # fill in MONGO_URI, JWT_SECRET (32+ chars), email settings
-npm install
-npm run dev
 
-# Web app (http://localhost:5173, proxies /api to the API)
+cp .env.example .env
+npm install
+```
+
+Configure the environment variables in `.env`, including:
+
+- `MONGO_URI`
+- `JWT_SECRET` (at least 32 characters)
+- Email and SMTP settings
+
+Start the development server:
+
+bash
+
+```bash
+npm run dev
+```
+
+The API runs at `http://localhost:5000`.
+
+Swagger documentation is available at `http://localhost:5000/api/docs`.
+
+### 2\. Start the frontend
+
+Open another terminal:
+
+bash
+
+```bash
 cd client
+
 cp .env.example .env
 npm install
 npm run dev
 ```
 
-Handy scripts, in both folders: `npm test`, `npm run typecheck`, `npm run build`, and `npm run gen:types` after editing `server/openapi/openapi.yaml`.
+The frontend runs at `http://localhost:5173` and proxies API requests to the backend.
+
+### Available scripts
+
+Both `server/` and `client/` include the following scripts where applicable:
+
+bash
+
+```bash
+npm test
+npm run typecheck
+npm run build
+```
+
+To regenerate API types after modifying the OpenAPI specification:
+
+bash
+
+```bash
+npm run gen:types
+```
+
+Run this from the relevant project directory.
 
 ## Testing
 
-- **API:** 90 Jest tests (Supertest against the real Express app and an in-memory MongoDB; email is mocked). They cover the OTP rules, JWT guard, ownership checks, validation and email templates.
-- **UI:** 55 Vitest tests (Testing Library) for forms, the OTP input, route guards, the dashboard and the dynamic team fields.
-- **End to end:** the whole journey was also exercised in a real browser (Playwright) against the real API, a real MongoDB and a local mail catcher: signup, OTP, login, registration, confirmation email, contact form and logout, at desktop and phone widths. That script is not part of the repo yet.
+### Backend
+
+The backend has 90 Jest tests using Supertest and an in-memory MongoDB instance. Email delivery is mocked during testing.
+
+The tests cover:
+
+- OTP generation, expiry and verification.
+- Authentication and JWT middleware.
+- User profile updates.
+- Registration and ownership checks.
+- Request validation and error handling.
+- Email templates.
+
+### Frontend
+
+The frontend has 55 Vitest tests using Testing Library.
+
+These cover form validation, OTP input, authentication flow, route guards, dashboard behaviour and dynamic team member fields.
+
+### End-to-end testing
+
+The complete registration flow was also tested in a browser using Playwright against the API, MongoDB and a local mail catcher.
+
+The test covered signup, email verification, login, registration, confirmation emails, the contact form and logout on desktop and mobile screen sizes.
+
+The Playwright test script has not yet been added to the repository.
 
 ## Deployment
 
-`render.yaml` describes both services, so a Render **Blueprint** deploys everything from this repo: a Node web service for the API and a static site for the React app, with a health check and single-page-app routing. Secrets are never stored in the file; Render asks for them. Step by step, including the Brevo email setup, is in section 11 of `instructions.md`.
+The project uses Render for hosting.
 
-## More documentation
+We define two services:
 
-- [`instructions.md`](instructions.md): full setup guide (Atlas, email, running, deploying, troubleshooting)
-- [`docs/adr/`](docs/adr/README.md): architecture decision records
-- [`docs/api-schema.md`](docs/api-schema.md) and [`server/openapi/openapi.yaml`](server/openapi/openapi.yaml): API contract
-- [`docs/database-schema.md`](docs/database-schema.md): collections, fields and indexes
+- **Backend:** Node.js web service hosting the Express API.
+- **Frontend:** Static site hosting the React application.
 
-## What we would do next
+Both services can be deployed together using a Render Blueprint. The configuration includes a backend health check and frontend routing for the single-page application.
 
-A GitHub Actions pipeline that runs both test suites on every push, the browser end-to-end script in the repo, an organiser dashboard with CSV export, httpOnly-cookie sessions, and a move to PostgreSQL.
+Environment variables and secrets are configured through the Render dashboard rather than stored in the repository.
 
-## Contact
 
-Questions about the hackathon: `<project email>`
+## Project Documentation
+
+- `docs/adr/` – Architecture Decision Records.
+- `docs/api-schema.md` – API schema and field details.
+- `server/openapi/openapi.yaml` – OpenAPI specification.
+- `docs/database-schema.md` – Database collections, fields and indexes.
+
+## Future Improvements
+
+Some things I would like to work on next:
+
+- Build an organiser dashboard with registration management and CSV export.
+- Move authentication to HTTP-only cookies with refresh tokens.
+- Consider PostgreSQL as the application grows.
+
+
+## Acknowledgements
+
+AI tools were used during the development of this project for assistance with code suggestions, debugging, documentation and resolving implementation issues. The project was developed as part of an assessment to demonstrate practical skills in full-stack development, API design, database management, authentication, testing and deployment.
+
+The implementation, technical decisions and final project were reviewed and refined as part of the assessment process.
